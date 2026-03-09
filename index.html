@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSONL Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #1c2128;
+      --bg4: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text2: #8b949e;
+      --text3: #6e7681;
+      --accent: #58a6ff;
+      --accent2: #388bfd1a;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --purple: #bc8cff;
+      --orange: #ffa657;
+      --selected: #1f3158;
+      --selected-border: #58a6ff;
+      --hover: #161b22;
+      --row-alt: #0d1117;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    /* ── Drop overlay ── */
+    #drop-overlay {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      z-index: 100;
+      transition: opacity 0.2s;
+    }
+    #drop-overlay.hidden { display: none; }
+    #drop-overlay.drag-active { background: #0d1f33; }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 60px 80px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: var(--bg2);
+    }
+    .drop-zone:hover, .drop-zone.active {
+      border-color: var(--accent);
+      background: var(--accent2);
+    }
+    .drop-icon { font-size: 48px; margin-bottom: 16px; }
+    .drop-title { font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+    .drop-sub { color: var(--text2); font-size: 13px; font-family: system-ui, sans-serif; }
+    .drop-or { color: var(--text3); margin: 8px 0; }
+    .btn-browse {
+      display: inline-block;
+      padding: 8px 20px;
+      background: var(--accent);
+      color: #0d1117;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+      border: none;
+      font-family: inherit;
+      transition: opacity 0.1s;
+    }
+    .btn-browse:hover { opacity: 0.85; }
+    #file-input { display: none; }
+
+    .drop-shortcuts {
+      color: var(--text3);
+      font-size: 11px;
+      font-family: system-ui, sans-serif;
+      text-align: center;
+      line-height: 1.8;
+    }
+    kbd {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 11px;
+      font-family: inherit;
+    }
+
+    /* ── Main app layout ── */
+    #app {
+      display: none;
+      height: 100vh;
+      flex-direction: column;
+    }
+    #app.visible { display: flex; }
+
+    /* Top bar */
+    #topbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #topbar .logo {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+    #file-name {
+      color: var(--text2);
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    #stats {
+      color: var(--text3);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+    #search-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      max-width: 400px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0 8px;
+      gap: 6px;
+      margin-left: auto;
+    }
+    #search-wrap:focus-within { border-color: var(--accent); }
+    #search-icon { color: var(--text3); font-size: 12px; }
+    #search-input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 12px;
+      padding: 5px 0;
+      font-family: inherit;
+    }
+    #search-input::placeholder { color: var(--text3); }
+    #search-count { color: var(--text3); font-size: 11px; white-space: nowrap; }
+
+    .sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+
+    #view-toggle {
+      display: flex;
+      gap: 2px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px;
+      flex-shrink: 0;
+    }
+    .view-btn {
+      background: none;
+      border: none;
+      color: var(--text2);
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: inherit;
+      transition: all 0.1s;
+    }
+    .view-btn.active { background: var(--bg3); color: var(--text); }
+    .view-btn:hover:not(.active) { color: var(--text); }
+
+    #btn-new-file {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text2);
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: inherit;
+      transition: all 0.1s;
+      flex-shrink: 0;
+    }
+    #btn-new-file:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Main content ── */
+    #content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Table view ── */
+    #table-container {
+      flex: 1;
+      overflow: auto;
+      position: relative;
+    }
+    #table-container:focus { outline: none; }
+
+    #data-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    #data-table thead th {
+      position: sticky;
+      top: 0;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      padding: 6px 10px;
+      text-align: left;
+      color: var(--text2);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      user-select: none;
+      cursor: pointer;
+      z-index: 2;
+      min-width: 80px;
+    }
+    #data-table thead th:hover { color: var(--text); }
+    #data-table thead th .sort-icon { color: var(--text3); margin-left: 4px; }
+    #data-table thead th.sorted { color: var(--accent); }
+
+    #row-num-th {
+      width: 50px !important;
+      min-width: 50px !important;
+      color: var(--text3) !important;
+      cursor: default !important;
+      background: var(--bg2);
+      z-index: 3;
+      position: sticky;
+      left: 0;
+      top: 0;
+    }
+
+    #data-table tbody tr {
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.05s;
+    }
+    #data-table tbody tr:hover { background: var(--hover); }
+    #data-table tbody tr.selected {
+      background: var(--selected) !important;
+      outline: 1px solid var(--selected-border);
+      outline-offset: -1px;
+    }
+    #data-table tbody tr.match-highlight { background: #2d2a1a; }
+    #data-table tbody tr.selected.match-highlight { background: var(--selected) !important; }
+
+    #data-table tbody td {
+      padding: 5px 10px;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 300px;
+      font-size: 12px;
+      vertical-align: middle;
+    }
+    #data-table tbody td.row-num {
+      color: var(--text3);
+      font-size: 11px;
+      width: 50px;
+      text-align: right;
+      position: sticky;
+      left: 0;
+      background: var(--bg);
+    }
+    tr.selected td.row-num { background: var(--selected); }
+    tr:hover td.row-num { background: var(--hover); }
+
+    .val-null { color: var(--text3); font-style: italic; }
+    .val-bool-true { color: var(--green); }
+    .val-bool-false { color: var(--red); }
+    .val-num { color: var(--orange); }
+    .val-str { color: var(--text); }
+    .val-obj { color: var(--purple); }
+    .val-arr { color: var(--purple); }
+
+    /* ── Detail panel ── */
+    #detail-panel {
+      width: 420px;
+      min-width: 280px;
+      max-width: 60vw;
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      background: var(--bg2);
+      flex-shrink: 0;
+      position: relative;
+    }
+    #detail-panel.hidden { display: none; }
+
+    #detail-resize {
+      position: absolute;
+      left: -3px;
+      top: 0; bottom: 0;
+      width: 6px;
+      cursor: ew-resize;
+      z-index: 10;
+    }
+    #detail-resize:hover, #detail-resize.dragging { background: var(--accent); opacity: 0.5; }
+
+    #detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #detail-title { color: var(--text2); font-size: 11px; font-weight: 600; letter-spacing: 0.05em; }
+    #detail-nav { display: flex; gap: 4px; align-items: center; }
+    .detail-nav-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text2);
+      width: 22px; height: 22px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.1s;
+    }
+    .detail-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .detail-nav-btn:disabled { opacity: 0.3; cursor: default; }
+    #detail-counter { color: var(--text3); font-size: 11px; padding: 0 4px; }
+
+    #detail-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .detail-tab {
+      padding: 6px 14px;
+      cursor: pointer;
+      color: var(--text2);
+      font-size: 11px;
+      border-bottom: 2px solid transparent;
+      transition: all 0.1s;
+    }
+    .detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .detail-tab:hover:not(.active) { color: var(--text); }
+
+    #detail-body {
+      flex: 1;
+      overflow: auto;
+      padding: 12px;
+    }
+
+    /* JSON tree */
+    .json-tree { font-size: 12px; line-height: 1.7; }
+    .jt-line { display: flex; align-items: flex-start; gap: 4px; padding: 1px 0; }
+    .jt-toggle {
+      color: var(--text3);
+      cursor: pointer;
+      user-select: none;
+      width: 14px;
+      flex-shrink: 0;
+      font-size: 10px;
+      padding-top: 2px;
+    }
+    .jt-toggle:hover { color: var(--text); }
+    .jt-indent { width: 14px; flex-shrink: 0; }
+    .jt-key { color: var(--accent); }
+    .jt-colon { color: var(--text3); margin: 0 3px; }
+    .jt-bracket { color: var(--text2); }
+    .jt-collapsed { display: none; }
+    .jt-ellipsis { color: var(--text3); }
+
+    /* Raw tab */
+    #detail-raw {
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+      padding: 10px;
+      border-radius: 6px;
+    }
+
+    /* ── JSON viewer mode ── */
+    #json-list-container {
+      flex: 1;
+      overflow: auto;
+      display: none;
+    }
+    #json-list-container.visible { display: block; }
+    #table-container.hidden { display: none; }
+
+    .json-card {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      cursor: pointer;
+      transition: background 0.05s;
+    }
+    .json-card:hover { background: var(--hover); }
+    .json-card.selected { background: var(--selected); border-left: 2px solid var(--accent); }
+    .json-card .card-num { color: var(--text3); font-size: 11px; margin-bottom: 4px; }
+    .json-card .card-body { font-size: 12px; }
+
+    /* ── Status bar ── */
+    #statusbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 3px 12px;
+      background: var(--accent);
+      color: #0d1117;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+    #statusbar .status-item { display: flex; align-items: center; gap: 4px; }
+    #statusbar .sep2 { opacity: 0.4; }
+    #status-msg { margin-left: auto; }
+    #statusbar kbd {
+      background: rgba(0,0,0,0.2);
+      border: none;
+      color: #0d1117;
+      font-size: 10px;
+      padding: 1px 4px;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+    /* ── Help overlay ── */
+    #help-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      backdrop-filter: blur(4px);
+    }
+    #help-overlay.hidden { display: none; }
+    .help-box {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 32px;
+      max-width: 540px;
+      width: 90vw;
+    }
+    .help-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 20px; }
+    .help-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; }
+    .help-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #30363d44; }
+    .help-action { color: var(--text2); font-size: 12px; font-family: system-ui, sans-serif; }
+    .help-keys { display: flex; gap: 4px; }
+    .help-close { margin-top: 20px; text-align: center; color: var(--text3); font-size: 12px; font-family: system-ui, sans-serif; }
+
+    /* ── Misc ── */
+    .match-text { background: #d2992233; color: var(--yellow); border-radius: 2px; }
+    #no-results {
+      padding: 40px;
+      text-align: center;
+      color: var(--text3);
+      font-family: system-ui, sans-serif;
+    }
+
+    /* Column resize handle */
+    .col-resize-handle {
+      position: absolute;
+      right: 0; top: 0; bottom: 0;
+      width: 4px;
+      cursor: col-resize;
+    }
+    thead th { position: sticky; top: 0; }
+    thead th > .th-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      overflow: hidden;
+    }
+
+    @media (max-width: 700px) {
+      #detail-panel { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Drop screen -->
+<div id="drop-overlay">
+  <div class="drop-zone" id="drop-zone">
+    <div class="drop-icon">📄</div>
+    <div class="drop-title">Drop your JSONL file here</div>
+    <div class="drop-sub">JSON Lines — one JSON object per line</div>
+    <div class="drop-or">— or —</div>
+    <label class="btn-browse" for="file-input">Browse file</label>
+    <input type="file" id="file-input" accept=".jsonl,.ndjson,.json,.txt" />
+  </div>
+  <div class="drop-shortcuts">
+    <kbd>↑</kbd><kbd>↓</kbd> navigate &nbsp;·&nbsp;
+    <kbd>Enter</kbd> detail &nbsp;·&nbsp;
+    <kbd>/</kbd> search &nbsp;·&nbsp;
+    <kbd>?</kbd> shortcuts &nbsp;·&nbsp;
+    <kbd>Esc</kbd> close panel
+  </div>
+</div>
+
+<!-- Main app -->
+<div id="app">
+  <!-- Top bar -->
+  <div id="topbar">
+    <div class="logo">JSONL</div>
+    <div class="sep"></div>
+    <div id="file-name">—</div>
+    <div id="stats"></div>
+    <div id="search-wrap">
+      <span id="search-icon">⌕</span>
+      <input id="search-input" placeholder="Search… (/ to focus)" spellcheck="false" />
+      <span id="search-count"></span>
+    </div>
+    <div id="view-toggle">
+      <button class="view-btn active" id="btn-table" title="Table view (T)">⊞ Table</button>
+      <button class="view-btn" id="btn-json" title="JSON view (J)">{ } JSON</button>
+    </div>
+    <div class="sep"></div>
+    <button id="btn-new-file" title="Open new file (O)">↩ New file</button>
+  </div>
+
+  <!-- Content -->
+  <div id="content">
+    <div id="table-container" tabindex="0">
+      <table id="data-table">
+        <thead id="table-head"><tr id="header-row"><th id="row-num-th">#</th></tr></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+      <div id="no-results" style="display:none">No matching records</div>
+    </div>
+
+    <div id="json-list-container">
+      <!-- filled dynamically -->
+    </div>
+
+    <!-- Detail panel -->
+    <div id="detail-panel" class="hidden">
+      <div id="detail-resize"></div>
+      <div id="detail-header">
+        <div id="detail-title">RECORD</div>
+        <div id="detail-nav">
+          <button class="detail-nav-btn" id="det-prev" title="Previous (↑)">▲</button>
+          <span id="detail-counter">0 / 0</span>
+          <button class="detail-nav-btn" id="det-next" title="Next (↓)">▼</button>
+        </div>
+      </div>
+      <div id="detail-tabs">
+        <div class="detail-tab active" data-tab="tree">Tree</div>
+        <div class="detail-tab" data-tab="raw">Raw</div>
+      </div>
+      <div id="detail-body">
+        <div id="detail-tree" class="json-tree"></div>
+        <pre id="detail-raw" style="display:none"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div id="statusbar">
+    <span class="status-item">
+      <kbd>↑↓</kbd> navigate
+    </span>
+    <span class="sep2">|</span>
+    <span class="status-item">
+      <kbd>Enter</kbd> detail
+    </span>
+    <span class="sep2">|</span>
+    <span class="status-item">
+      <kbd>/</kbd> search
+    </span>
+    <span class="sep2">|</span>
+    <span class="status-item">
+      <kbd>T</kbd> table &nbsp;<kbd>J</kbd> JSON
+    </span>
+    <span class="sep2">|</span>
+    <span class="status-item">
+      <kbd>O</kbd> open file
+    </span>
+    <span class="sep2">|</span>
+    <span class="status-item">
+      <kbd>?</kbd> help
+    </span>
+    <span id="status-msg"></span>
+  </div>
+</div>
+
+<!-- Help overlay -->
+<div id="help-overlay" class="hidden">
+  <div class="help-box">
+    <div class="help-title">⌨️ Keyboard Shortcuts</div>
+    <div class="help-grid">
+      <div class="help-row">
+        <span class="help-action">Navigate rows</span>
+        <div class="help-keys"><kbd>↑</kbd><kbd>↓</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-action">Page up / down</span>
+        <div class="help-keys"><kbd>PgUp</kbd><kbd>PgDn</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-action">First / last row</span>
+        <div class="help-keys"><kbd>Home</kbd><kbd>End</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-action">Open detail panel</span>
+        <div class="help-keys"><kbd>Enter</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-action">Close detail / search</span>
+        <div class="help-keys"><kbd>Esc</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-action">Focus search</span>
+        <div class="help-keys"><kbd>/</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-action">Switch to table view</span>
+        <div class="help-keys"><kbd>T</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-action">Switch to JSON view</span>
+        <div class="help-keys"><kbd>J</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-action">Open new file</span>
+        <div class="help-keys"><kbd>O</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-action">Copy row JSON</span>
+        <div class="help-keys"><kbd>C</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-action">Paste JSONL text</span>
+        <div class="help-keys"><kbd>V</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-action">Toggle this help</span>
+        <div class="help-keys"><kbd>?</kbd></div>
+      </div>
+    </div>
+    <div class="help-close">Press <kbd style="background:var(--bg3);border:1px solid var(--border);color:var(--text)">Esc</kbd> or <kbd style="background:var(--bg3);border:1px solid var(--border);color:var(--text)">?</kbd> to close</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ── State ──
+  let allRows = [];        // parsed objects
+  let filteredRows = [];   // after search
+  let columns = [];        // column keys
+  let selectedIdx = 0;     // index in filteredRows
+  let detailOpen = false;
+  let currentView = 'table'; // 'table' | 'json'
+  let detailTab = 'tree';
+  let searchQuery = '';
+  let sortCol = null;
+  let sortDir = 1;
+  let colWidths = {};      // key -> px
+
+  // ── DOM refs ──
+  const dropOverlay = document.getElementById('drop-overlay');
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const app = document.getElementById('app');
+  const tableContainer = document.getElementById('table-container');
+  const jsonListContainer = document.getElementById('json-list-container');
+  const tableHead = document.getElementById('header-row');
+  const tableBody = document.getElementById('table-body');
+  const detailPanel = document.getElementById('detail-panel');
+  const detailTree = document.getElementById('detail-tree');
+  const detailRaw = document.getElementById('detail-raw');
+  const detailCounter = document.getElementById('detail-counter');
+  const detPrev = document.getElementById('det-prev');
+  const detNext = document.getElementById('det-next');
+  const searchInput = document.getElementById('search-input');
+  const searchCount = document.getElementById('search-count');
+  const fileName = document.getElementById('file-name');
+  const stats = document.getElementById('stats');
+  const noResults = document.getElementById('no-results');
+  const helpOverlay = document.getElementById('help-overlay');
+  const statusMsg = document.getElementById('status-msg');
+  const btnTable = document.getElementById('btn-table');
+  const btnJson = document.getElementById('btn-json');
+  const btnNewFile = document.getElementById('btn-new-file');
+
+  // ── Drag-drop file loading ──
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('active'); dropOverlay.classList.add('drag-active'); });
+  dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('active'); dropOverlay.classList.remove('drag-active'); });
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('active'); dropOverlay.classList.remove('drag-active'); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+  // Also allow drag over the whole app
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => { e.preventDefault(); if (app.classList.contains('visible')) { const f = e.dataTransfer.files[0]; if (f) loadFile(f); } });
+
+  // ── File loading ──
+  function loadFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const text = e.target.result;
+      parseJSONL(text, file.name);
+    };
+    reader.readAsText(file);
+  }
+
+  function parseJSONL(text, name = 'paste') {
+    const lines = text.trim().split('\n');
+    const rows = [];
+    let errors = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      try {
+        rows.push(JSON.parse(line));
+      } catch {
+        errors++;
+      }
+    }
+    if (!rows.length) {
+      alert('No valid JSON lines found.');
+      return;
+    }
+    allRows = rows;
+    fileName.textContent = name;
+    if (errors) statusMsg.textContent = `⚠ ${errors} parse error(s)`;
+    columns = extractColumns(rows);
+    colWidths = {};
+    sortCol = null;
+    searchQuery = '';
+    searchInput.value = '';
+    selectedIdx = 0;
+    detailOpen = false;
+    applyFilter();
+    showApp();
+  }
+
+  function extractColumns(rows) {
+    const seen = new Map(); // key -> count
+    for (const row of rows) {
+      if (row && typeof row === 'object' && !Array.isArray(row)) {
+        for (const k of Object.keys(row)) {
+          seen.set(k, (seen.get(k) || 0) + 1);
+        }
+      }
+    }
+    // sort by frequency desc, then alpha
+    return [...seen.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(e => e[0]);
+  }
+
+  // ── App show/hide ──
+  function showApp() {
+    dropOverlay.classList.add('hidden');
+    app.classList.add('visible');
+    renderTable();
+    tableContainer.focus();
+  }
+
+  function resetToDropScreen() {
+    dropOverlay.classList.remove('hidden');
+    app.classList.remove('visible');
+    detailPanel.classList.add('hidden');
+    detailOpen = false;
+    allRows = [];
+    fileInput.value = '';
+  }
+
+  btnNewFile.addEventListener('click', resetToDropScreen);
+
+  // ── Search ──
+  searchInput.addEventListener('input', () => {
+    searchQuery = searchInput.value.toLowerCase();
+    selectedIdx = 0;
+    applyFilter();
+  });
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { searchInput.value = ''; searchQuery = ''; applyFilter(); searchInput.blur(); }
+    if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); tableContainer.focus(); }
+  });
+
+  function applyFilter() {
+    if (!searchQuery) {
+      filteredRows = allRows.slice();
+    } else {
+      filteredRows = allRows.filter(row => {
+        const s = JSON.stringify(row).toLowerCase();
+        return s.includes(searchQuery);
+      });
+    }
+    if (sortCol !== null) applySortInPlace();
+    stats.textContent = `${allRows.length.toLocaleString()} rows · ${columns.length} cols`;
+    searchCount.textContent = searchQuery ? `${filteredRows.length} match${filteredRows.length !== 1 ? 'es' : ''}` : '';
+    if (currentView === 'table') renderTable();
+    else renderJsonList();
+    updateDetail();
+  }
+
+  // ── Sort ──
+  function applySortInPlace() {
+    const col = sortCol;
+    filteredRows.sort((a, b) => {
+      const va = getVal(a, col); const vb = getVal(b, col);
+      if (va === vb) return 0;
+      if (va === null || va === undefined) return 1;
+      if (vb === null || vb === undefined) return -1;
+      return (va < vb ? -1 : 1) * sortDir;
+    });
+  }
+
+  function getVal(row, col) {
+    return row && typeof row === 'object' ? row[col] : undefined;
+  }
+
+  function handleSort(col) {
+    if (sortCol === col) sortDir = -sortDir;
+    else { sortCol = col; sortDir = 1; }
+    applyFilter();
+  }
+
+  // ── Table rendering ──
+  function renderTable() {
+    renderHeaders();
+    renderRows();
+    noResults.style.display = filteredRows.length === 0 ? 'block' : 'none';
+  }
+
+  function renderHeaders() {
+    tableHead.innerHTML = '<th id="row-num-th" style="width:50px;min-width:50px">#</th>';
+    for (const col of columns) {
+      const th = document.createElement('th');
+      const w = colWidths[col];
+      if (w) th.style.width = w + 'px';
+      const inner = document.createElement('div');
+      inner.className = 'th-inner';
+      const label = document.createTextNode(col);
+      inner.appendChild(label);
+      if (sortCol === col) {
+        const si = document.createElement('span');
+        si.className = 'sort-icon';
+        si.textContent = sortDir === 1 ? '↑' : '↓';
+        inner.appendChild(si);
+        th.classList.add('sorted');
+      }
+      th.appendChild(inner);
+      th.title = col;
+      th.addEventListener('click', () => handleSort(col));
+
+      // Column resize
+      const rh = document.createElement('div');
+      rh.className = 'col-resize-handle';
+      let startX, startW;
+      rh.addEventListener('mousedown', ev => {
+        ev.stopPropagation();
+        startX = ev.clientX;
+        startW = th.offsetWidth;
+        const onMove = em => {
+          const newW = Math.max(60, startW + em.clientX - startX);
+          th.style.width = newW + 'px';
+          colWidths[col] = newW;
+        };
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+      th.style.position = 'relative';
+      th.appendChild(rh);
+      tableHead.appendChild(th);
+    }
+  }
+
+  const PAGE_SIZE = 200; // virtual render chunk
+  let renderedUpTo = 0;
+
+  function renderRows() {
+    tableBody.innerHTML = '';
+    renderedUpTo = 0;
+    renderNextChunk();
+    if (selectedIdx < filteredRows.length) scrollToRow(selectedIdx);
+  }
+
+  function renderNextChunk() {
+    const end = Math.min(renderedUpTo + PAGE_SIZE, filteredRows.length);
+    for (let i = renderedUpTo; i < end; i++) {
+      const row = filteredRows[i];
+      const tr = document.createElement('tr');
+      tr.dataset.idx = i;
+      if (i === selectedIdx) tr.classList.add('selected');
+      if (searchQuery && JSON.stringify(row).toLowerCase().includes(searchQuery)) tr.classList.add('match-highlight');
+
+      const td0 = document.createElement('td');
+      td0.className = 'row-num';
+      td0.textContent = i + 1;
+      tr.appendChild(td0);
+
+      for (const col of columns) {
+        const td = document.createElement('td');
+        const v = row && typeof row === 'object' ? row[col] : undefined;
+        td.innerHTML = renderCell(v, searchQuery);
+        td.title = v === undefined ? '' : JSON.stringify(v);
+        tr.appendChild(td);
+      }
+
+      tr.addEventListener('click', () => { selectRow(i); openDetail(); });
+      tableBody.appendChild(tr);
+    }
+    renderedUpTo = end;
+  }
+
+  // Lazy load more rows on scroll
+  tableContainer.addEventListener('scroll', () => {
+    if (renderedUpTo < filteredRows.length) {
+      const { scrollTop, scrollHeight, clientHeight } = tableContainer;
+      if (scrollTop + clientHeight > scrollHeight - 200) {
+        renderNextChunk();
+      }
+    }
+  });
+
+  function renderCell(v, q) {
+    if (v === null) return `<span class="val-null">null</span>`;
+    if (v === undefined) return '';
+    if (typeof v === 'boolean') return `<span class="${v ? 'val-bool-true' : 'val-bool-false'}">${v}</span>`;
+    if (typeof v === 'number') return `<span class="val-num">${v}</span>`;
+    if (typeof v === 'object') {
+      const s = Array.isArray(v) ? `[${v.length}]` : `{${Object.keys(v).length}}`;
+      return `<span class="val-obj">${escHtml(s)}</span>`;
+    }
+    const str = String(v);
+    if (!q) return `<span class="val-str">${escHtml(str)}</span>`;
+    // highlight match
+    const idx = str.toLowerCase().indexOf(q);
+    if (idx === -1) return `<span class="val-str">${escHtml(str)}</span>`;
+    const before = escHtml(str.slice(0, idx));
+    const match = escHtml(str.slice(idx, idx + q.length));
+    const after = escHtml(str.slice(idx + q.length));
+    return `<span class="val-str">${before}<span class="match-text">${match}</span>${after}</span>`;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── JSON list view ──
+  function renderJsonList() {
+    jsonListContainer.innerHTML = '';
+    for (let i = 0; i < filteredRows.length; i++) {
+      const row = filteredRows[i];
+      const card = document.createElement('div');
+      card.className = 'json-card' + (i === selectedIdx ? ' selected' : '');
+      card.dataset.idx = i;
+      const num = document.createElement('div');
+      num.className = 'card-num';
+      num.textContent = `#${i + 1}`;
+      const body = document.createElement('div');
+      body.className = 'card-body';
+      body.appendChild(renderJsonTree(row, 1));
+      card.appendChild(num);
+      card.appendChild(body);
+      card.addEventListener('click', () => { selectRow(i); openDetail(); });
+      jsonListContainer.appendChild(card);
+    }
+  }
+
+  // ── View toggle ──
+  btnTable.addEventListener('click', () => setView('table'));
+  btnJson.addEventListener('click', () => setView('json'));
+
+  function setView(v) {
+    currentView = v;
+    btnTable.classList.toggle('active', v === 'table');
+    btnJson.classList.toggle('active', v === 'json');
+    tableContainer.classList.toggle('hidden', v !== 'table');
+    jsonListContainer.classList.toggle('visible', v !== 'table');
+    if (v === 'table') renderTable();
+    else renderJsonList();
+  }
+
+  // ── Selection ──
+  function selectRow(idx) {
+    if (idx < 0 || idx >= filteredRows.length) return;
+    selectedIdx = idx;
+    // Update DOM
+    document.querySelectorAll('#table-body tr.selected').forEach(r => r.classList.remove('selected'));
+    document.querySelectorAll('.json-card.selected').forEach(r => r.classList.remove('selected'));
+    const tr = tableBody.querySelector(`[data-idx="${idx}"]`);
+    if (tr) { tr.classList.add('selected'); scrollToRow(idx); }
+    const card = jsonListContainer.querySelector(`[data-idx="${idx}"]`);
+    if (card) { card.classList.add('selected'); card.scrollIntoView({ block: 'nearest' }); }
+    if (detailOpen) updateDetail();
+  }
+
+  function scrollToRow(idx) {
+    // Ensure chunk is rendered
+    if (idx >= renderedUpTo) {
+      const extraEnd = Math.min(idx + PAGE_SIZE, filteredRows.length);
+      for (let i = renderedUpTo; i < extraEnd; i++) {
+        // fast-render up to idx
+        const row = filteredRows[i];
+        const tr = document.createElement('tr');
+        tr.dataset.idx = i;
+        if (i === selectedIdx) tr.classList.add('selected');
+        const td0 = document.createElement('td'); td0.className = 'row-num'; td0.textContent = i+1; tr.appendChild(td0);
+        for (const col of columns) { const td = document.createElement('td'); const v = row && typeof row === 'object' ? row[col] : undefined; td.innerHTML = renderCell(v, searchQuery); tr.appendChild(td); }
+        tr.addEventListener('click', () => { selectRow(i); openDetail(); });
+        tableBody.appendChild(tr);
+      }
+      renderedUpTo = extraEnd;
+    }
+    const tr = tableBody.querySelector(`[data-idx="${idx}"]`);
+    if (tr) tr.scrollIntoView({ block: 'nearest' });
+  }
+
+  // ── Detail panel ──
+  function openDetail() {
+    detailOpen = true;
+    detailPanel.classList.remove('hidden');
+    updateDetail();
+  }
+
+  function closeDetail() {
+    detailOpen = false;
+    detailPanel.classList.add('hidden');
+  }
+
+  function updateDetail() {
+    if (!detailOpen || !filteredRows.length) return;
+    const row = filteredRows[selectedIdx];
+    detailCounter.textContent = `${selectedIdx + 1} / ${filteredRows.length}`;
+    detPrev.disabled = selectedIdx === 0;
+    detNext.disabled = selectedIdx === filteredRows.length - 1;
+    if (detailTab === 'tree') {
+      detailTree.style.display = '';
+      detailRaw.style.display = 'none';
+      detailTree.innerHTML = '';
+      detailTree.appendChild(renderJsonTree(row, Infinity));
+    } else {
+      detailTree.style.display = 'none';
+      detailRaw.style.display = '';
+      detailRaw.textContent = JSON.stringify(row, null, 2);
+    }
+  }
+
+  detPrev.addEventListener('click', () => { selectRow(selectedIdx - 1); });
+  detNext.addEventListener('click', () => { selectRow(selectedIdx + 1); });
+
+  document.querySelectorAll('.detail-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      detailTab = tab.dataset.tab;
+      updateDetail();
+    });
+  });
+
+  // ── JSON tree renderer ──
+  function renderJsonTree(value, maxDepth, depth = 0, key = null) {
+    const frag = document.createDocumentFragment();
+    const line = document.createElement('div');
+    line.className = 'jt-line';
+
+    if (key !== null) {
+      const kEl = document.createElement('span');
+      kEl.className = 'jt-key';
+      kEl.textContent = JSON.stringify(key);
+      const colon = document.createElement('span');
+      colon.className = 'jt-colon';
+      colon.textContent = ': ';
+      line.appendChild(kEl);
+      line.appendChild(colon);
+    }
+
+    if (value === null) {
+      const v = document.createElement('span'); v.className = 'val-null'; v.textContent = 'null'; line.appendChild(v);
+      frag.appendChild(line);
+    } else if (typeof value === 'boolean') {
+      const v = document.createElement('span'); v.className = value ? 'val-bool-true' : 'val-bool-false'; v.textContent = String(value); line.appendChild(v);
+      frag.appendChild(line);
+    } else if (typeof value === 'number') {
+      const v = document.createElement('span'); v.className = 'val-num'; v.textContent = String(value); line.appendChild(v);
+      frag.appendChild(line);
+    } else if (typeof value === 'string') {
+      const v = document.createElement('span'); v.className = 'val-str'; v.textContent = JSON.stringify(value); line.appendChild(v);
+      frag.appendChild(line);
+    } else if (Array.isArray(value)) {
+      if (value.length === 0 || depth >= maxDepth) {
+        const b = document.createElement('span'); b.className = 'val-arr'; b.textContent = value.length === 0 ? '[]' : `[… ${value.length}]`; line.appendChild(b);
+        frag.appendChild(line);
+      } else {
+        const toggle = document.createElement('span'); toggle.className = 'jt-toggle'; toggle.textContent = '▾';
+        const ob = document.createElement('span'); ob.className = 'jt-bracket'; ob.textContent = `[ ${value.length} ]`;
+        line.prepend(toggle); line.appendChild(ob);
+        frag.appendChild(line);
+        const children = document.createElement('div'); children.style.paddingLeft = '16px';
+        for (let i = 0; i < value.length; i++) children.appendChild(renderJsonTree(value[i], maxDepth, depth+1, i));
+        frag.appendChild(children);
+        toggle.addEventListener('click', () => {
+          const collapsed = children.classList.toggle('jt-collapsed');
+          toggle.textContent = collapsed ? '▸' : '▾';
+        });
+      }
+    } else if (typeof value === 'object') {
+      const keys = Object.keys(value);
+      if (keys.length === 0 || depth >= maxDepth) {
+        const b = document.createElement('span'); b.className = 'val-obj'; b.textContent = keys.length === 0 ? '{}' : `{… ${keys.length}}`; line.appendChild(b);
+        frag.appendChild(line);
+      } else {
+        const toggle = document.createElement('span'); toggle.className = 'jt-toggle'; toggle.textContent = '▾';
+        const ob = document.createElement('span'); ob.className = 'jt-bracket'; ob.textContent = `{ ${keys.length} }`;
+        line.prepend(toggle); line.appendChild(ob);
+        frag.appendChild(line);
+        const children = document.createElement('div'); children.style.paddingLeft = '16px';
+        for (const k of keys) children.appendChild(renderJsonTree(value[k], maxDepth, depth+1, k));
+        frag.appendChild(children);
+        toggle.addEventListener('click', () => {
+          const collapsed = children.classList.toggle('jt-collapsed');
+          toggle.textContent = collapsed ? '▸' : '▾';
+        });
+      }
+    } else {
+      const v = document.createElement('span'); v.textContent = String(value); line.appendChild(v);
+      frag.appendChild(line);
+    }
+    return frag;
+  }
+
+  // ── Keyboard ──
+  document.addEventListener('keydown', e => {
+    const tag = document.activeElement.tagName.toLowerCase();
+    const inInput = tag === 'input' || tag === 'textarea';
+
+    // Help toggle
+    if (e.key === '?' && !inInput) { helpOverlay.classList.toggle('hidden'); return; }
+
+    if (!helpOverlay.classList.contains('hidden')) {
+      if (e.key === 'Escape' || e.key === '?') helpOverlay.classList.add('hidden');
+      return;
+    }
+
+    if (!app.classList.contains('visible')) return;
+
+    // Focus search
+    if (e.key === '/' && !inInput) { e.preventDefault(); searchInput.focus(); searchInput.select(); return; }
+
+    // Escape
+    if (e.key === 'Escape') {
+      if (inInput) { searchInput.blur(); return; }
+      if (detailOpen) { closeDetail(); return; }
+      return;
+    }
+
+    if (inInput) return;
+
+    // View toggle
+    if (e.key === 't' || e.key === 'T') { setView('table'); return; }
+    if (e.key === 'j' || e.key === 'J') { setView('json'); return; }
+
+    // Open new file
+    if (e.key === 'o' || e.key === 'O') { e.preventDefault(); resetToDropScreen(); return; }
+
+    // Copy row
+    if (e.key === 'c' || e.key === 'C') {
+      if (filteredRows[selectedIdx]) {
+        navigator.clipboard?.writeText(JSON.stringify(filteredRows[selectedIdx], null, 2)).then(() => flash('Copied!'));
+      }
+      return;
+    }
+
+    // Paste JSONL
+    if (e.key === 'v' || e.key === 'V') {
+      navigator.clipboard?.readText().then(text => {
+        if (text) parseJSONL(text, 'clipboard');
+      });
+      return;
+    }
+
+    if (!filteredRows.length) return;
+
+    // Navigation
+    if (e.key === 'ArrowDown') { e.preventDefault(); selectRow(Math.min(selectedIdx + 1, filteredRows.length - 1)); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); selectRow(Math.max(selectedIdx - 1, 0)); return; }
+    if (e.key === 'PageDown') { e.preventDefault(); selectRow(Math.min(selectedIdx + 20, filteredRows.length - 1)); return; }
+    if (e.key === 'PageUp') { e.preventDefault(); selectRow(Math.max(selectedIdx - 20, 0)); return; }
+    if (e.key === 'Home') { e.preventDefault(); selectRow(0); return; }
+    if (e.key === 'End') { e.preventDefault(); selectRow(filteredRows.length - 1); return; }
+    if (e.key === 'Enter') { openDetail(); return; }
+  });
+
+  function flash(msg) {
+    statusMsg.textContent = msg;
+    setTimeout(() => { statusMsg.textContent = ''; }, 1500);
+  }
+
+  // ── Detail panel resize ──
+  const resizeHandle = document.getElementById('detail-resize');
+  let resizing = false, resizeStartX, resizeStartW;
+  resizeHandle.addEventListener('mousedown', e => {
+    resizing = true;
+    resizeStartX = e.clientX;
+    resizeStartW = detailPanel.offsetWidth;
+    resizeHandle.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!resizing) return;
+    const newW = Math.max(220, Math.min(resizeStartW + (resizeStartX - e.clientX), window.innerWidth * 0.7));
+    detailPanel.style.width = newW + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (resizing) { resizing = false; resizeHandle.classList.remove('dragging'); document.body.style.userSelect = ''; }
+  });
+
+  // Help overlay click outside
+  helpOverlay.addEventListener('click', e => { if (e.target === helpOverlay) helpOverlay.classList.add('hidden'); });
+
+})();
+</script>
+</body>
+</html>
