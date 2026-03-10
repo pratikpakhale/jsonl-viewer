@@ -3,7 +3,66 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>JSONL Viewer</title>
+
+  <!-- Primary SEO -->
+  <title>JSONL Viewer — Explore JSON Lines in your browser</title>
+  <meta name="description" content="A fast, local JSONL viewer. Drop a file or paste JSON Lines text — get a searchable table, tree view, and detail panel. No upload, no server, 100% private." />
+  <meta name="keywords" content="jsonl viewer, json lines viewer, ndjson viewer, json viewer online, data explorer, jsonl parser" />
+  <meta name="author" content="jsonl.pakhale.com" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://jsonl.pakhale.com" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="JSONL Viewer" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:url" content="https://jsonl.pakhale.com" />
+  <meta property="og:title" content="JSONL Viewer — Explore JSON Lines in your browser" />
+  <meta property="og:description" content="Fast, local JSONL explorer. Drop a file or paste text — searchable table, tree view, detail panel. 100% client-side, no upload." />
+  <meta property="og:image" content="https://jsonl.pakhale.com/og.jpg" />
+  <meta property="og:image:type" content="image/jpeg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="JSONL Viewer app showing a table of JSON Lines data with a detail panel" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="JSONL Viewer — Explore JSON Lines in your browser" />
+  <meta name="twitter:description" content="Fast, local JSONL explorer. Drop a file or paste text — searchable table + tree view. No upload, 100% private." />
+  <meta name="twitter:image" content="https://jsonl.pakhale.com/og.jpg" />
+  <meta name="twitter:image:alt" content="JSONL Viewer app showing a table of JSON Lines data with a detail panel" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <meta name="theme-color" content="#0d1117" />
+
+  <!-- JSON-LD structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "JSONL Viewer",
+    "url": "https://jsonl.pakhale.com",
+    "description": "A fast, local JSONL viewer. Drop a file or paste JSON Lines text — get a searchable table, tree view, and detail panel. No upload, no server.",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "featureList": [
+      "Table view with sortable columns",
+      "JSON tree view",
+      "Full-text search",
+      "File drag and drop",
+      "Paste JSONL text",
+      "100% client-side, no data upload"
+    ]
+  }
+  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -38,7 +97,7 @@
       overflow: hidden;
     }
 
-    /* ── Drop overlay ── */
+    /* ── Drop overlay / Landing ── */
     #drop-overlay {
       position: fixed; inset: 0;
       background: var(--bg);
@@ -46,52 +105,223 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 20px;
+      gap: 32px;
       z-index: 100;
-      transition: opacity 0.2s;
+      overflow-y: auto;
+      padding: 40px 20px;
     }
     #drop-overlay.hidden { display: none; }
-    #drop-overlay.drag-active { background: #0d1f33; }
+    #drop-overlay.drag-active .drop-zone {
+      border-color: var(--accent);
+      background: var(--accent2);
+    }
 
+    /* Hero */
+    .lp-hero {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .lp-logo {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 4px;
+    }
+    .lp-logo-bracket { color: var(--text3); }
+    .lp-logo-l { color: var(--accent); }
+    .lp-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.5px;
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+    }
+    .lp-tagline {
+      color: var(--text2);
+      font-size: 13px;
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 420px;
+      line-height: 1.6;
+    }
+    .lp-badges {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .lp-badge {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      font-size: 11px;
+      font-family: system-ui, sans-serif;
+      padding: 4px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    /* Cards row */
+    .drop-cards {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      max-width: 780px;
+      width: 100%;
+    }
+
+    /* File drop card */
     .drop-zone {
-      border: 2px dashed var(--border);
-      border-radius: 16px;
-      padding: 60px 80px;
+      flex: 1;
+      border: 1.5px dashed var(--border);
+      border-radius: 14px;
+      padding: 36px 32px;
       text-align: center;
       cursor: pointer;
       transition: all 0.15s;
       background: var(--bg2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
     }
-    .drop-zone:hover, .drop-zone.active {
+    .drop-zone:hover {
       border-color: var(--accent);
-      background: var(--accent2);
+      background: #131a24;
     }
-    .drop-icon { font-size: 48px; margin-bottom: 16px; }
-    .drop-title { font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
-    .drop-sub { color: var(--text2); font-size: 13px; font-family: system-ui, sans-serif; }
-    .drop-or { color: var(--text3); margin: 8px 0; }
+
+    /* Paste card */
+    .drop-paste-card {
+      flex: 1;
+      border: 1.5px dashed var(--border);
+      border-radius: 14px;
+      padding: 28px 28px;
+      text-align: center;
+      background: var(--bg2);
+      transition: border-color 0.15s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .drop-paste-card:focus-within {
+      border-color: var(--purple);
+      background: #141120;
+    }
+
+    .drop-card-icon {
+      margin-bottom: 4px;
+      opacity: 0.9;
+    }
+    .drop-card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .drop-card-sub {
+      color: var(--text2);
+      font-size: 12px;
+      font-family: system-ui, sans-serif;
+    }
+    .drop-card-sub code {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--text);
+    }
+    .drop-card-formats {
+      color: var(--text3);
+      font-size: 11px;
+      font-family: system-ui, sans-serif;
+      margin-top: 4px;
+    }
+
+    .drop-or { color: var(--text3); font-size: 12px; margin: 2px 0; }
+
     .btn-browse {
       display: inline-block;
-      padding: 8px 20px;
+      padding: 8px 22px;
       background: var(--accent);
       color: #0d1117;
-      border-radius: 6px;
-      font-weight: 600;
+      border-radius: 7px;
+      font-weight: 700;
       cursor: pointer;
       font-size: 13px;
       border: none;
       font-family: inherit;
       transition: opacity 0.1s;
+      margin-top: 4px;
     }
     .btn-browse:hover { opacity: 0.85; }
     #file-input { display: none; }
+
+    .btn-load-paste {
+      display: inline-block;
+      padding: 8px 22px;
+      background: var(--purple);
+      color: #0d1117;
+      border-radius: 7px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 13px;
+      border: none;
+      font-family: inherit;
+      transition: opacity 0.1s;
+      margin-top: 4px;
+      width: 100%;
+    }
+    .btn-load-paste:hover { opacity: 0.85; }
+
+    #drop-paste-area {
+      width: 100%;
+      height: 120px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 12px;
+      padding: 10px 12px;
+      resize: vertical;
+      outline: none;
+      line-height: 1.6;
+      margin-top: 4px;
+    }
+    #drop-paste-area:focus { border-color: var(--purple); }
+    #drop-paste-area::placeholder { color: var(--text3); }
+
+    .drop-divider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 52px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .drop-divider span {
+      color: var(--text3);
+      font-size: 11px;
+      font-family: system-ui, sans-serif;
+      background: var(--bg);
+      padding: 4px 6px;
+      border-radius: 20px;
+      z-index: 1;
+      border: 1px solid var(--border);
+    }
 
     .drop-shortcuts {
       color: var(--text3);
       font-size: 11px;
       font-family: system-ui, sans-serif;
       text-align: center;
-      line-height: 1.8;
+      line-height: 2;
     }
     kbd {
       background: var(--bg3);
@@ -100,6 +330,83 @@
       padding: 1px 5px;
       font-size: 11px;
       font-family: inherit;
+    }
+
+    /* ── Paste modal ── */
+    #paste-modal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 300;
+      backdrop-filter: blur(4px);
+    }
+    #paste-modal.hidden { display: none; }
+    .paste-modal-box {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 560px;
+      max-width: 92vw;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .paste-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .paste-modal-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .paste-modal-close {
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .paste-modal-close:hover { color: var(--text); background: var(--bg4); }
+    #paste-modal-area {
+      width: 100%;
+      height: 240px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 12px;
+      padding: 12px;
+      resize: vertical;
+      outline: none;
+      line-height: 1.5;
+    }
+    #paste-modal-area:focus { border-color: var(--accent); }
+    #paste-modal-area::placeholder { color: var(--text3); }
+    .paste-modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .paste-modal-hint { color: var(--text3); font-size: 11px; font-family: system-ui, sans-serif; }
+
+    @media (max-width: 640px) {
+      .drop-cards { flex-direction: column; }
+      .drop-divider { width: 100%; height: 36px; }
+      .drop-divider::before, .drop-divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+      .lp-title { font-size: 22px; }
     }
 
     /* ── Main app layout ── */
@@ -189,7 +496,7 @@
     .view-btn.active { background: var(--bg3); color: var(--text); }
     .view-btn:hover:not(.active) { color: var(--text); }
 
-    #btn-new-file {
+    #btn-new-file, #btn-paste-open {
       background: none;
       border: 1px solid var(--border);
       color: var(--text2);
@@ -202,6 +509,7 @@
       flex-shrink: 0;
     }
     #btn-new-file:hover { border-color: var(--accent); color: var(--accent); }
+    #btn-paste-open:hover { border-color: var(--green); color: var(--green); }
 
     /* ── Main content ── */
     #content {
@@ -300,6 +608,10 @@
     .val-bool-false { color: var(--red); }
     .val-num { color: var(--orange); }
     .val-str { color: var(--text); }
+    .val-str-ml { color: var(--text); white-space: pre-wrap; word-break: break-word; font-size: 11px; line-height: 1.6; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; display: block; margin-top: 2px; max-height: 300px; overflow-y: auto; }
+    .esc-nl  { color: var(--text3); font-size: 10px; }   /* ↵ newline symbol */
+    .esc-tab { color: var(--text3); font-size: 10px; }   /* → tab symbol */
+    .esc-other { color: var(--yellow); }                  /* \r \0 etc */
     .val-obj { color: var(--purple); }
     .val-arr { color: var(--purple); }
 
@@ -511,20 +823,73 @@
 
 <!-- Drop screen -->
 <div id="drop-overlay">
-  <div class="drop-zone" id="drop-zone">
-    <div class="drop-icon">📄</div>
-    <div class="drop-title">Drop your JSONL file here</div>
-    <div class="drop-sub">JSON Lines — one JSON object per line</div>
-    <div class="drop-or">— or —</div>
-    <label class="btn-browse" for="file-input">Browse file</label>
-    <input type="file" id="file-input" accept=".jsonl,.ndjson,.json,.txt" />
+
+  <!-- Hero -->
+  <div class="lp-hero">
+    <div class="lp-logo">
+      <span class="lp-logo-bracket">{</span><span class="lp-logo-l">L</span><span class="lp-logo-bracket">}</span>
+    </div>
+    <h1 class="lp-title">JSONL Viewer</h1>
+    <p class="lp-tagline">Explore JSON Lines files instantly — in your browser, no upload, no server.</p>
+    <div class="lp-badges">
+      <span class="lp-badge">⚡ Instant</span>
+      <span class="lp-badge">🔒 100% local</span>
+      <span class="lp-badge">⊞ Table + Tree view</span>
+      <span class="lp-badge">⌕ Full-text search</span>
+    </div>
   </div>
+
+  <!-- Input cards -->
+  <div class="drop-cards">
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-card-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      </div>
+      <div class="drop-card-title">Drop a file</div>
+      <div class="drop-card-sub">Drag &amp; drop your <code>.jsonl</code> file here</div>
+      <div class="drop-or">— or —</div>
+      <label class="btn-browse" for="file-input">Browse file</label>
+      <input type="file" id="file-input" accept=".jsonl,.ndjson,.json,.txt" />
+      <div class="drop-card-formats">.jsonl &nbsp;·&nbsp; .ndjson &nbsp;·&nbsp; .json &nbsp;·&nbsp; .txt</div>
+    </div>
+
+    <div class="drop-divider"><span>or</span></div>
+
+    <div class="drop-paste-card" id="drop-paste-card">
+      <div class="drop-card-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--purple)"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+      </div>
+      <div class="drop-card-title">Paste text</div>
+      <div class="drop-card-sub">One JSON object per line</div>
+      <textarea id="drop-paste-area" placeholder='{"id": 1, "name": "Alice"}&#10;{"id": 2, "name": "Bob"}&#10;…' spellcheck="false"></textarea>
+      <button class="btn-load-paste" id="btn-load-paste">Load →</button>
+    </div>
+  </div>
+
+  <!-- Shortcuts -->
   <div class="drop-shortcuts">
     <kbd>↑</kbd><kbd>↓</kbd> navigate &nbsp;·&nbsp;
-    <kbd>Enter</kbd> detail &nbsp;·&nbsp;
     <kbd>/</kbd> search &nbsp;·&nbsp;
-    <kbd>?</kbd> shortcuts &nbsp;·&nbsp;
-    <kbd>Esc</kbd> close panel
+    <kbd>T</kbd> table &nbsp;<kbd>J</kbd> JSON &nbsp;·&nbsp;
+    <kbd>Enter</kbd> detail &nbsp;·&nbsp;
+    <kbd>Ctrl+V</kbd> paste &nbsp;·&nbsp;
+    <kbd>?</kbd> shortcuts
+  </div>
+
+</div>
+
+<!-- Paste modal (accessible from app) -->
+<div id="paste-modal" class="hidden">
+  <div class="paste-modal-box">
+    <div class="paste-modal-header">
+      <span class="paste-modal-title">📋 Paste JSONL</span>
+      <button class="paste-modal-close" id="btn-paste-close">✕</button>
+    </div>
+    <textarea id="paste-modal-area" placeholder='{"key": "value"}&#10;{"key": "value2"}&#10;…' spellcheck="false"></textarea>
+    <div class="paste-modal-footer">
+      <span class="paste-modal-hint">One JSON object per line</span>
+      <button class="btn-browse" id="btn-paste-load">Load</button>
+    </div>
   </div>
 </div>
 
@@ -546,6 +911,7 @@
       <button class="view-btn" id="btn-json" title="JSON view (J)">{ } JSON</button>
     </div>
     <div class="sep"></div>
+    <button id="btn-paste-open" title="Paste JSONL text (V)">📋 Paste</button>
     <button id="btn-new-file" title="Open new file (O)">↩ New file</button>
   </div>
 
@@ -601,6 +967,10 @@
     <span class="sep2">|</span>
     <span class="status-item">
       <kbd>T</kbd> table &nbsp;<kbd>J</kbd> JSON
+    </span>
+    <span class="sep2">|</span>
+    <span class="status-item">
+      <kbd>V</kbd> paste
     </span>
     <span class="sep2">|</span>
     <span class="status-item">
@@ -691,6 +1061,12 @@
   const dropOverlay = document.getElementById('drop-overlay');
   const dropZone = document.getElementById('drop-zone');
   const fileInput = document.getElementById('file-input');
+  const dropPasteArea = document.getElementById('drop-paste-area');
+  const btnLoadPaste = document.getElementById('btn-load-paste');
+  const pasteModal = document.getElementById('paste-modal');
+  const pasteModalArea = document.getElementById('paste-modal-area');
+  const btnPasteClose = document.getElementById('btn-paste-close');
+  const btnPasteLoad = document.getElementById('btn-paste-load');
   const app = document.getElementById('app');
   const tableContainer = document.getElementById('table-container');
   const jsonListContainer = document.getElementById('json-list-container');
@@ -718,6 +1094,64 @@
   dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('active'); dropOverlay.classList.remove('drag-active'); });
   dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('active'); dropOverlay.classList.remove('drag-active'); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
   fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+  // ── Drop-screen paste ──
+  btnLoadPaste.addEventListener('click', () => {
+    const text = dropPasteArea.value.trim();
+    if (text) { parseJSONL(text, 'pasted text'); dropPasteArea.value = ''; }
+    else dropPasteArea.focus();
+  });
+  dropPasteArea.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      btnLoadPaste.click();
+    }
+  });
+
+  // ── Paste modal (app view) ──
+  function openPasteModal() {
+    pasteModalArea.value = '';
+    pasteModal.classList.remove('hidden');
+    setTimeout(() => pasteModalArea.focus(), 50);
+  }
+  function closePasteModal() {
+    pasteModal.classList.add('hidden');
+  }
+  btnPasteClose.addEventListener('click', closePasteModal);
+  btnPasteLoad.addEventListener('click', () => {
+    const text = pasteModalArea.value.trim();
+    if (text) { parseJSONL(text, 'pasted text'); closePasteModal(); }
+    else pasteModalArea.focus();
+  });
+  pasteModalArea.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); btnPasteLoad.click(); }
+    if (e.key === 'Escape') { e.preventDefault(); closePasteModal(); }
+  });
+  pasteModal.addEventListener('click', e => { if (e.target === pasteModal) closePasteModal(); });
+
+  // ── Global Ctrl+V / paste event ──
+  document.addEventListener('paste', e => {
+    const tag = document.activeElement.tagName.toLowerCase();
+    // Let textarea/input handle their own paste
+    if (tag === 'textarea' || tag === 'input') return;
+    const text = e.clipboardData?.getData('text');
+    if (!text) return;
+    e.preventDefault();
+    if (app.classList.contains('visible')) {
+      // In app: open paste modal pre-filled
+      pasteModalArea.value = text;
+      openPasteModal();
+    } else {
+      // On drop screen: fill textarea and auto-load if multi-line
+      dropPasteArea.value = text;
+      if (text.trim().includes('\n')) {
+        parseJSONL(text, 'pasted text');
+        dropPasteArea.value = '';
+      } else {
+        dropPasteArea.focus();
+      }
+    }
+  });
 
   // Also allow drag over the whole app
   document.addEventListener('dragover', e => e.preventDefault());
@@ -797,6 +1231,7 @@
   }
 
   btnNewFile.addEventListener('click', resetToDropScreen);
+  document.getElementById('btn-paste-open').addEventListener('click', openPasteModal);
 
   // ── Search ──
   searchInput.addEventListener('input', () => {
@@ -959,14 +1394,19 @@
       const s = Array.isArray(v) ? `[${v.length}]` : `{${Object.keys(v).length}}`;
       return `<span class="val-obj">${escHtml(s)}</span>`;
     }
+    // String — replace escape chars with visible symbols before search highlight
     const str = String(v);
-    if (!q) return `<span class="val-str">${escHtml(str)}</span>`;
-    // highlight match
+    const rendered = escHtml(str)
+      .replace(/\\n|\n/g, '<span class="esc-nl">↵</span>')
+      .replace(/\\t|\t/g, '<span class="esc-tab">→</span>')
+      .replace(/\\r|\r/g, '<span class="esc-other">\\r</span>');
+    if (!q) return `<span class="val-str">${rendered}</span>`;
+    // For search highlight, work on plain string then re-render
     const idx = str.toLowerCase().indexOf(q);
-    if (idx === -1) return `<span class="val-str">${escHtml(str)}</span>`;
-    const before = escHtml(str.slice(0, idx));
+    if (idx === -1) return `<span class="val-str">${rendered}</span>`;
+    const before = escHtml(str.slice(0, idx)).replace(/\\n|\n/g, '<span class="esc-nl">↵</span>').replace(/\\t|\t/g, '<span class="esc-tab">→</span>');
     const match = escHtml(str.slice(idx, idx + q.length));
-    const after = escHtml(str.slice(idx + q.length));
+    const after = escHtml(str.slice(idx + q.length)).replace(/\\n|\n/g, '<span class="esc-nl">↵</span>').replace(/\\t|\t/g, '<span class="esc-tab">→</span>');
     return `<span class="val-str">${before}<span class="match-text">${match}</span>${after}</span>`;
   }
 
@@ -1086,6 +1526,39 @@
     });
   });
 
+  // ── Escape sequence renderer ──
+  // Renders a string into a <pre> with colored escape chars
+  function renderEscapedString(el, str) {
+    el.innerHTML = '';
+    // Split on real newlines first — show each line on its own line
+    const lines = str.split('\n');
+    lines.forEach((line, li) => {
+      // Within each line, highlight \t and \r
+      const parts = line.split(/(\t|\r)/g);
+      parts.forEach(part => {
+        if (part === '\t') {
+          const s = document.createElement('span');
+          s.className = 'esc-tab';
+          s.textContent = '→   ';
+          el.appendChild(s);
+        } else if (part === '\r') {
+          const s = document.createElement('span');
+          s.className = 'esc-other';
+          s.textContent = '\\r';
+          el.appendChild(s);
+        } else {
+          el.appendChild(document.createTextNode(part));
+        }
+      });
+      if (li < lines.length - 1) {
+        const nl = document.createElement('span');
+        nl.className = 'esc-nl';
+        nl.textContent = '↵\n';
+        el.appendChild(nl);
+      }
+    });
+  }
+
   // ── JSON tree renderer ──
   function renderJsonTree(value, maxDepth, depth = 0, key = null) {
     const frag = document.createDocumentFragment();
@@ -1113,8 +1586,30 @@
       const v = document.createElement('span'); v.className = 'val-num'; v.textContent = String(value); line.appendChild(v);
       frag.appendChild(line);
     } else if (typeof value === 'string') {
-      const v = document.createElement('span'); v.className = 'val-str'; v.textContent = JSON.stringify(value); line.appendChild(v);
-      frag.appendChild(line);
+      const hasEscapes = /[\n\t\r]/.test(value) || /\\[ntr\\"]/.test(JSON.stringify(value).slice(1,-1));
+      if (hasEscapes) {
+        // Render as a collapsible multi-line block
+        const preview = value.replace(/\n/g, '↵').replace(/\t/g, '→').replace(/\r/g, '␍').slice(0, 60);
+        const vPreview = document.createElement('span');
+        vPreview.className = 'val-str';
+        vPreview.textContent = `"${preview}${value.length > 60 ? '…' : ''}"`;
+        line.appendChild(vPreview);
+        frag.appendChild(line);
+
+        // Expanded block
+        const block = document.createElement('pre');
+        block.className = 'val-str-ml';
+        // Render with colored escape chars
+        renderEscapedString(block, value);
+
+        const wrapper = document.createElement('div');
+        wrapper.style.paddingLeft = key !== null ? '16px' : '0';
+        wrapper.appendChild(block);
+        frag.appendChild(wrapper);
+      } else {
+        const v = document.createElement('span'); v.className = 'val-str'; v.textContent = JSON.stringify(value); line.appendChild(v);
+        frag.appendChild(line);
+      }
     } else if (Array.isArray(value)) {
       if (value.length === 0 || depth >= maxDepth) {
         const b = document.createElement('span'); b.className = 'val-arr'; b.textContent = value.length === 0 ? '[]' : `[… ${value.length}]`; line.appendChild(b);
@@ -1199,11 +1694,9 @@
       return;
     }
 
-    // Paste JSONL
+    // Paste JSONL via modal
     if (e.key === 'v' || e.key === 'V') {
-      navigator.clipboard?.readText().then(text => {
-        if (text) parseJSONL(text, 'clipboard');
-      });
+      openPasteModal();
       return;
     }
 
