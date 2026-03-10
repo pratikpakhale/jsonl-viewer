@@ -1263,7 +1263,17 @@
   });
   searchInput.addEventListener('keydown', e => {
     if (e.key === 'Escape') { searchInput.value = ''; searchQuery = ''; applyFilter(); searchInput.blur(); }
-    if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); tableContainer.focus(); }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectRow(Math.min(selectedIdx + 1, filteredRows.length - 1));
+      tableContainer.focus();
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectRow(Math.max(selectedIdx - 1, 0));
+      tableContainer.focus();
+    }
+    if (e.key === 'Enter') { e.preventDefault(); tableContainer.focus(); }
   });
 
   function applyFilter() {
