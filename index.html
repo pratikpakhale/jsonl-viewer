@@ -931,7 +931,7 @@
     </div>
     <div class="sep"></div>
     <button id="btn-paste-open" title="Paste JSONL text (V)">📋 Paste</button>
-    <button id="btn-new-file" title="Open new file (O)">↩ New file</button>
+    <button id="btn-new-file" title="New / clear (N)">↩ New</button>
   </div>
 
   <!-- Content -->
@@ -1075,6 +1075,66 @@
   let detailTab = 'tree';
   let renderEscapes = true;
   let searchQuery = '';
+  let _savedRawText = null; // reference for IDB save
+
+  // ── IndexedDB persistence ──
+  const IDB_NAME = 'jsonl-viewer', IDB_STORE = 'session', IDB_KEY = 'last';
+  let _db = null;
+
+  function openDB() {
+    return new Promise((res, rej) => {
+      if (_db) return res(_db);
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
+      req.onsuccess = e => { _db = e.target.result; res(_db); };
+      req.onerror = () => rej(req.error);
+    });
+  }
+  function idbSet(val) {
+    return openDB().then(db => new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(val, IDB_KEY);
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    }));
+  }
+  function idbGet() {
+    return openDB().then(db => new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+      req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error);
+    }));
+  }
+  function idbClear() {
+    return openDB().then(db => new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(IDB_KEY);
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    }));
+  }
+
+  // Restore on load
+  idbGet().then(saved => {
+    if (!saved || !saved.text) return;
+    parseJSONL(saved.text, saved.name || 'restored', true);
+    // Restore view state after render
+    requestAnimationFrame(() => {
+      if (saved.view) setView(saved.view);
+      if (saved.search) { searchInput.value = saved.search; searchQuery = saved.search; applyFilter(); }
+      if (saved.idx) selectRow(saved.idx);
+    });
+  }).catch(() => {});
+
+  // Save state on unload
+  window.addEventListener('beforeunload', () => {
+    if (!_savedRawText || !allRows.length) return;
+    idbSet({
+      text: _savedRawText,
+      name: fileName.textContent,
+      view: currentView,
+      search: searchQuery,
+      idx: selectedIdx,
+    }).catch(() => {});
+  });
   let sortCol = null;
   let sortDir = 1;
   let colWidths = {};      // key -> px
@@ -1189,7 +1249,7 @@
     reader.readAsText(file);
   }
 
-  function parseJSONL(text, name = 'paste') {
+  function parseJSONL(text, name = 'paste', isRestore = false) {
     const lines = text.trim().split('\n');
     const rows = [];
     let errors = 0;
@@ -1207,8 +1267,10 @@
       return;
     }
     allRows = rows;
+    _savedRawText = text;
     fileName.textContent = name;
     if (errors) statusMsg.textContent = `⚠ ${errors} parse error(s)`;
+    else if (isRestore) flash('↺ restored');
     columns = extractColumns(rows);
     colWidths = {};
     sortCol = null;
@@ -1216,6 +1278,7 @@
     searchInput.value = '';
     selectedIdx = 0;
     detailOpen = false;
+    if (!isRestore) idbSet({ text, name, view: currentView, search: '', idx: 0 }).catch(() => {});
     applyFilter();
     showApp();
   }
@@ -1249,7 +1312,9 @@
     detailPanel.classList.add('hidden');
     detailOpen = false;
     allRows = [];
+    _savedRawText = null;
     fileInput.value = '';
+    idbClear().catch(() => {});
   }
 
   btnNewFile.addEventListener('click', resetToDropScreen);
@@ -1262,19 +1327,40 @@
     applyFilter();
   });
   searchInput.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { searchInput.value = ''; searchQuery = ''; applyFilter(); searchInput.blur(); }
+    if (e.key === 'Escape') {
+      // Just blur — keep the query intact so user can return to same results
+      e.preventDefault();
+      searchInput.blur();
+      tableContainer.focus();
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       selectRow(Math.min(selectedIdx + 1, filteredRows.length - 1));
-      tableContainer.focus();
+      // Don't steal focus — stay in search so user can keep typing
+      return;
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault();
       selectRow(Math.max(selectedIdx - 1, 0));
-      tableContainer.focus();
+      return;
     }
-    if (e.key === 'Enter') { e.preventDefault(); tableContainer.focus(); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // If a row is selected, open its detail panel
+      if (filteredRows.length && selectedIdx >= 0) {
+        openDetail();
+      }
+      // Keep focus in search so user can navigate other results
+      return;
+    }
   });
+
+  function updateSearchCount() {
+    if (!searchQuery) { searchCount.textContent = ''; return; }
+    if (!filteredRows.length) { searchCount.textContent = '0 matches'; return; }
+    searchCount.textContent = `${selectedIdx + 1} / ${filteredRows.length} match${filteredRows.length !== 1 ? 'es' : ''}`;
+  }
 
   function applyFilter() {
     if (!searchQuery) {
@@ -1288,6 +1374,7 @@
     if (sortCol !== null) applySortInPlace();
     stats.textContent = `${allRows.length.toLocaleString()} rows · ${columns.length} cols`;
     searchCount.textContent = searchQuery ? `${filteredRows.length} match${filteredRows.length !== 1 ? 'es' : ''}` : '';
+    updateSearchCount();
     if (currentView === 'table') renderTable();
     else renderJsonList();
     updateDetail();
@@ -1493,6 +1580,7 @@
     const card = jsonListContainer.querySelector(`[data-idx="${idx}"]`);
     if (card) { card.classList.add('selected'); card.scrollIntoView({ block: 'nearest' }); }
     if (detailOpen) updateDetail();
+    updateSearchCount();
   }
 
   function scrollToRow(idx) {
@@ -1713,8 +1801,10 @@
 
     // Escape
     if (e.key === 'Escape') {
-      if (inInput) { searchInput.blur(); return; }
+      if (inInput) return; // handled by input's own keydown
       if (detailOpen) { closeDetail(); return; }
+      // If there's an active search, clear it on Esc from table
+      if (searchQuery) { searchInput.value = ''; searchQuery = ''; applyFilter(); return; }
       return;
     }
 
